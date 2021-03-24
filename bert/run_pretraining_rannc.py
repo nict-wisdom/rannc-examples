@@ -85,6 +85,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 import pyrannc
 from pyrannc.amp import allreduce_grads_rannc
+from pyrannc.opt.util import gather_optimizer_state_dict
 
 enable_show_mem = False
 
@@ -165,11 +166,13 @@ class pretraining_dataset(Dataset):
         return [input_ids, segment_ids, input_mask,
                 masked_lm_labels, next_sentence_labels]
 
+
 class BertPretrainingCriterion(torch.nn.Module):
     def __init__(self, vocab_size):
         super(BertPretrainingCriterion, self).__init__()
         self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-1)
         self.vocab_size = vocab_size
+
     def forward(self, prediction_scores, seq_relationship_score, masked_lm_labels, next_sentence_labels):
         masked_lm_loss = self.loss_fn(prediction_scores.view(-1, self.vocab_size).float(), masked_lm_labels.view(-1))
         next_sentence_loss = self.loss_fn(seq_relationship_score.view(-1, 2).float(), next_sentence_labels.view(-1))
@@ -466,26 +469,28 @@ def prepare_model_and_optimizer(args, device):
 
     model.checkpoint_activations(args.checkpoint_activations)
 
+    global_optimizer_state = None
     if args.resume_from_checkpoint:
+        global_optimizer_state, param_ranks = checkpoint['optimizer']
         if args.phase2 or args.init_checkpoint:
-            keys = list(checkpoint['optimizer']['state'].keys())
+            keys = list(global_optimizer_state['state'].keys())
             #Override hyperparameters from previous checkpoint
             for key in keys:
-                checkpoint['optimizer']['state'][key]['step'] = global_step
-            for iter, item in enumerate(checkpoint['optimizer']['param_groups']):
-                checkpoint['optimizer']['param_groups'][iter]['step'] = global_step
-                checkpoint['optimizer']['param_groups'][iter]['t_total'] = args.max_steps
-                checkpoint['optimizer']['param_groups'][iter]['warmup'] = args.warmup_proportion
-                checkpoint['optimizer']['param_groups'][iter]['lr'] = args.learning_rate
-        optimizer.load_state_dict(checkpoint['optimizer'])  # , strict=False)
+                global_optimizer_state['state'][key]['step'] = global_step
+            for iter, item in enumerate(global_optimizer_state['param_groups']):
+                global_optimizer_state['param_groups'][iter]['step'] = global_step
+                global_optimizer_state['param_groups'][iter]['t_total'] = args.max_steps
+                global_optimizer_state['param_groups'][iter]['warmup'] = args.warmup_proportion
+                global_optimizer_state['param_groups'][iter]['lr'] = args.learning_rate
+        # optimizer.load_state_dict(checkpoint['optimizer'])  # , strict=False)
 
         # Restore AMP master parameters
-        if args.fp16:
-            optimizer._lazy_init_maybe_master_weights()
-            optimizer._amp_stash.lazy_init_called = True
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            for param, saved_param in zip(amp.master_params(optimizer), checkpoint['master params']):
-                param.data.copy_(saved_param.data)
+        # if args.fp16:
+        #     optimizer._lazy_init_maybe_master_weights()
+        #     optimizer._amp_stash.lazy_init_called = True
+        #     optimizer.load_state_dict(checkpoint['optimizer'])
+        #     for param, saved_param in zip(amp.master_params(optimizer), checkpoint['master params']):
+        #         param.data.copy_(saved_param.data)
 
     if args.local_rank != -1:
         # if not args.allreduce_post_accumulation:
@@ -496,7 +501,7 @@ def prepare_model_and_optimizer(args, device):
     elif args.n_gpu > 1:
         model = torch.nn.DataParallel(model)
 
-    return model, optimizer, lr_scheduler, checkpoint, global_step
+    return model, optimizer, lr_scheduler, checkpoint, global_step, global_optimizer_state
 
 def take_optimizer_step(args, optimizer, model, overflow_buf, global_step):
 
@@ -565,7 +570,7 @@ def main():
     dllogger.log(step="PARAMETER", data={"Config": [str(args)]})
 
     # Prepare optimizer
-    model, optimizer, lr_scheduler, checkpoint, global_step = prepare_model_and_optimizer(args, device)
+    model, optimizer, lr_scheduler, checkpoint, global_step, global_optimizer_state = prepare_model_and_optimizer(args, device)
 
     if args.fp16:
         for name, _module in model.named_modules():
@@ -692,6 +697,11 @@ def main():
 
                     average_loss += loss.item()
 
+                    # Restore optimizer's state AFTER partitioning
+                    if global_optimizer_state:
+                        optimizer.load_state_dict(global_optimizer_state, from_global=True)
+                        global_optimizer_state = None
+
                     show_mem("Iter{}_bwd_fin".format(step))
 
                     if training_steps % args.gradient_accumulation_steps == 0:
@@ -727,21 +737,26 @@ def main():
 
                         # Save a trained model
                         dllogger.log(step="PARAMETER", data={"checkpoint_step": global_step})
-                        model_to_save = model.module if hasattr(model,
-                                                                'module') else model  # Only save the model it-self
+                        # model_to_save = model.module if hasattr(model,
+                        #                                         'module') else model  # Only save the model it-self
+
+                        state_dict = model.state_dict(sync_all_ranks=False, no_hook=True)
+                        global_opt_state_dict, param_ranks = gather_optimizer_state_dict(optimizer, use_amp_master_param=args.fp16)
+
                         if args.resume_step < 0 or not args.phase2:
                             output_save_file = os.path.join(args.output_dir, "ckpt_{}.pt".format(global_step))
                         else:
                             output_save_file = os.path.join(args.output_dir, "ckpt_{}.pt".format(global_step + args.phase1_end_step))
                         if args.do_train:
-                            data = {'model': model_to_save.state_dict(),
-                                        'optimizer': optimizer.state_dict(),
-                                        'master params': list(amp.master_params(optimizer)),
-                                        'files': [f_id] + files,
-                                        'epoch': epoch,
-                                        'data_loader': None if global_step >= args.max_steps else train_dataloader}
+                            data = {'model': state_dict,
+                                    'optimizer': (global_opt_state_dict, param_ranks),
+                                    'master params': list(amp.master_params(optimizer)),
+                                    'files': [f_id] + files,
+                                    'epoch': epoch,
+                                    'data_loader': None if global_step >= args.max_steps else train_dataloader}
 
                             if is_main_process() and not args.skip_checkpoint:
+                                dllogger.log(step=tuple(), data={"checkpoint_path": output_save_file})
                                 torch.save(data, output_save_file)
 
                                 most_recent_ckpts_paths.append(output_save_file)

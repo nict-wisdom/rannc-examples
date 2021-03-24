@@ -16,13 +16,12 @@
 # limitations under the License.
 
 export LD_LIBRARY_PATH=${CONDA_PREFIX}/lib/python3.7/site-packages/torch/lib:$LD_LIBRARY_PATH
-RL=/home/IAL/mtnk/work/pyrannc/bin/rannc_launcher
 PYTHON=${PYTHON:-python}
 
 export PYTHON
 echo "python_bin=${PYTHON}"
 
-BERT_PREP_WORKING_DIR=/share01/mtnk/work/DeepLearningExamples/PyTorch/LanguageModeling/BERT/data/prep
+BERT_PREP_WORKING_DIR=${BERT_PREP_WORKING_DIR:-/work/DeepLearningExamples/PyTorch/LanguageModeling/BERT/data/prep}
 
 echo "conda_env=${CONDA_ENV}"
 
@@ -57,27 +56,14 @@ MIN_PIPELINE=${MIN_PIPELINE:-1}
 MAX_PIPELINE=${MAX_PIPELINE:-32}
 MAX_PARTITION_NUM=${MAX_PARTITION_NUM:-30}
 MEM_MARGIN=${MEM_MARGIN:-0.1}
-TRACE_EVENTS=${TRACE_EVENTS:-false}
-DP_SEARCH_ALL=${DP_SEARCH_ALL:-false}
 MIN_PIPELINE_BS=${MIN_PIPELINE_BS:-1}
 
-PART=${PART:-1}
-REPL=${REPL:-8}
-PIPE=${PIPE:-1}
-
 PARAMS="NP${NP}"
-PARAMS+="_MINPL${MIN_PIPELINE}"
-PARAMS+="_MAXPL${MAX_PIPELINE}"
-PARAMS+="_MEM_MARGIN${MEM_MARGIN}"
-PARAMS+="_P1BS${BATCH_SIZE_PROC_P1}_P1ACC${ACC_STEPS_P1}_P1STEPS${TRAIN_STEPS_P1}_P1ONLY${PHASE1_ONLY}"
-PARAMS+="_P2BS${BATCH_SIZE_PROC_P2}_P2ACC${ACC_STEPS_P2}_P2STEPS${TRAIN_STEPS_P2}_P2ONLY${PHASE2_ONLY}"
-PARAMS+="_CG${CONSOLIDATE_GRADS}_SGS${SKIP_GRAD_SCALING}"
+PARAMS+="_P1BS${BATCH_SIZE_PROC_P1}_P1ACC${ACC_STEPS_P1}_P1STEPS${TRAIN_STEPS_P1}"
+PARAMS+="_P2BS${BATCH_SIZE_PROC_P2}_P2ACC${ACC_STEPS_P2}_P2STEPS${TRAIN_STEPS_P2}"
 PARAMS+="_PREC${PREC}"
-PARAMS+="_PT${MAX_PARTITION_NUM}_DPALL${DP_SEARCH_ALL}"
-PARAMS+="_MPBS${MIN_PIPELINE_BS}"
-PARAMS+="_T${TIMESTAMP}"
 
-PROF_CACHE_DIR=/share01/mtnk/prof_cache
+PROF_CACHE_DIR=${HOME}/prof_cache
 mkdir -p ${PROF_CACHE_DIR}
 DEPLOYMENT_FILE=${DEPLOYMENT_FILE:-"${PROF_CACHE_DIR}/prof_deployment_${PARAMS}.bin"}
 GRAPH_PROFILE_FILE=${GRAPH_PROFILE_FILE:-"${PROF_CACHE_DIR}/graph_profile_${PARAMS}.bin"}
@@ -105,10 +91,12 @@ gradient_accumulation_steps_phase2=${21:-${ACC_STEPS_P2}}
 DATASET=hdf5_lower_case_1_seq_len_128_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5/books_wiki_en_corpus # change this for other datasets
 DATA_DIR_PHASE1=${22:-$BERT_PREP_WORKING_DIR/${DATASET}/}
 BERT_CONFIG=${BERT_CONFIG:-bert_config.json}
-CODEDIR=${24:-"/share01/mtnk/work/pyrannc-examples/bert/DeepLearningExamples/PyTorch/LanguageModeling/BERT"}
+CODEDIR=${CODEDIR:-"/work/DeepLearningExamples/PyTorch/LanguageModeling/BERT"}
 init_checkpoint=${25:-"None"}
 RESULTS_DIR=$CODEDIR/results
 CHECKPOINTS_DIR=$RESULTS_DIR/rannc_${PARAMS}/checkpoints
+
+RL=${RL:-${CODEDIR}/rl}
 
 mkdir -p $CHECKPOINTS_DIR
 
@@ -191,14 +179,11 @@ MPI_OPTS+=" -x RANNC_LOAD_GRAPH_PROFILE=${LOAD_GRAPH_PROFILE}"
 MPI_OPTS+=" -x RANNC_GRAPH_PROFILE_FILE=${GRAPH_PROFILE_FILE}"
 MPI_OPTS+=" -x RANNC_CONSOLIDATE_GRADS=${CONSOLIDATE_GRADS}"
 MPI_OPTS+=" -x RANNC_SKIP_GRAD_SCALING=${SKIP_GRAD_SCALING}"
-MPI_OPTS+=" -x RANNC_TRACE_EVENTS=${TRACE_EVENTS}"
-MPI_OPTS+=" -x RANNC_DP_SEARCH_ALL=${DP_SEARCH_ALL}"
 MPI_OPTS+=" -x RANNC_MIN_PIPELINE_BS=${MIN_PIPELINE_BS}"
 
 RL_OPTS="${RL}"
 RL_OPTS+=" $(uname -n)"
 RL_OPTS+=" 20010"
-RL_OPTS+=" ${PART} ${REPL} ${PIPE}"
 
 CMD="time mpirun"
 CMD+=" ${MPI_OPTS}"
@@ -289,9 +274,9 @@ if [ "$allreduce_post_accumulation_fp16" == "true" ] ; then
 fi
 
 RESUME_OPTS=" --phase2 --resume_from_checkpoint --phase1_end_step=$train_steps"
-if [ "$PHASE2_ONLY" != "0" ] ; then
-RESUME_OPTS=""
-fi
+#if [ "$PHASE2_ONLY" != "0" ] ; then
+#RESUME_OPTS=""
+#fi
 
 echo $DATA_DIR_PHASE2
 INPUT_DIR=$DATA_DIR_PHASE2
