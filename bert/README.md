@@ -1,3 +1,5 @@
+# Using RaNNC for BERT pretraining
+
 This page briefly explains how to use RaNNC to train BERT models.
 Before running scripts in this repository, ensure that prerequisites to use RaNNC are satisfied 
 (RaNNC requires some libraries including MPI, NCCL, etc.).
