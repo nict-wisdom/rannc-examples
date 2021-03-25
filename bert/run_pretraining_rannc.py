@@ -460,7 +460,6 @@ def prepare_model_and_optimizer(args, device):
                                        warmup=args.warmup_proportion,
                                        total_steps=args.max_steps)
     if args.fp16:
-
         if args.loss_scale == 0:
             model, optimizer = amp.initialize(model, optimizer, opt_level="O2", loss_scale="dynamic", cast_model_outputs=torch.float32)
         else:
@@ -471,7 +470,7 @@ def prepare_model_and_optimizer(args, device):
 
     global_optimizer_state = None
     if args.resume_from_checkpoint:
-        global_optimizer_state, param_ranks = checkpoint['optimizer']
+        global_optimizer_state = checkpoint['optimizer']
         if args.phase2 or args.init_checkpoint:
             keys = list(global_optimizer_state['state'].keys())
             #Override hyperparameters from previous checkpoint
@@ -699,7 +698,7 @@ def main():
 
                     # Restore optimizer's state AFTER partitioning
                     if global_optimizer_state:
-                        optimizer.load_state_dict(global_optimizer_state, from_global=True)
+                        optimizer.load_state_dict(global_optimizer_state)
                         global_optimizer_state = None
 
                     show_mem("Iter{}_bwd_fin".format(step))
@@ -741,7 +740,7 @@ def main():
                         #                                         'module') else model  # Only save the model it-self
 
                         state_dict = model.state_dict(sync_all_ranks=False, no_hook=True)
-                        global_opt_state_dict, param_ranks = gather_optimizer_state_dict(optimizer, use_amp_master_param=args.fp16)
+                        global_opt_state_dict = optimizer.state_dict()
 
                         if args.resume_step < 0 or not args.phase2:
                             output_save_file = os.path.join(args.output_dir, "ckpt_{}.pt".format(global_step))
@@ -749,7 +748,7 @@ def main():
                             output_save_file = os.path.join(args.output_dir, "ckpt_{}.pt".format(global_step + args.phase1_end_step))
                         if args.do_train:
                             data = {'model': state_dict,
-                                    'optimizer': (global_opt_state_dict, param_ranks),
+                                    'optimizer': global_opt_state_dict,
                                     'master params': list(amp.master_params(optimizer)),
                                     'files': [f_id] + files,
                                     'epoch': epoch,

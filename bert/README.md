@@ -176,3 +176,36 @@ Therefore, RaNNCModule has a dedicated method to clip gradients.
 model.clip_grad_norm(1.0)
 ```
 
+## Saving/Loading checkpoints
+
+You can save or load model parameters using `state_dict` and `load_state_dict` of `RaNNCModule`.
+Note that you can call `state_dict` from all processes to collect parameters across processes.
+
+```python
+state_dict = model.state_dict(sync_all_ranks=False, no_hook=True)
+```
+
+When `sync_all_ranks=False`, the return value is valid only on rank 0.
+`no_hook=True` disables hooks on `state_dict`.
+This option aims to disable an apex amp's hook that converts all parameters to FP32.
+
+RaNNCModule's constructor also modifies the optimizer's `state_dict` and `load_state_dict` for RaNNC.
+`state_dict` collects the state of the optimizer across all processes.
+Therefore, the function must be called from all processes.
+
+```python
+global_opt_state_dict = optimizer.state_dict()
+```
+
+The return value of `optimizer.state_dict()` contains the state for all parameters.
+When properly loading it, `load_state_dict` must be called after the model partitioning is determined.
+The following shows a typical usage of `load_state_dict`, where `load_state_dict` is called once after a backward pass.
+
+```python
+# After backward pass
+if global_optimizer_state:
+     optimizer.load_state_dict(global_optimizer_state)
+     global_optimizer_state = None
+```
+
+
