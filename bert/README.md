@@ -1,5 +1,3 @@
-# BERT
-
 This page briefly explains how to use RaNNC to train BERT models.
 Before running scripts in this repository, ensure that prerequisites to use RaNNC are satisfied 
 (RaNNC requires some libraries including MPI, NCCL, etc.).
@@ -9,7 +7,7 @@ Before running scripts in this repository, ensure that prerequisites to use RaNN
 We use BERT [pretraining scripts by NVIDIA](https://github.com/NVIDIA/DeepLearningExamples/tree/master/PyTorch/LanguageModeling/BERT).
 Clone the repository and install required modules.
 We tested RaNNC with the revision shown below.
-Before using RaNNC, follow the steps to set up the datasets and make sure the original script correctly works.
+Before using RaNNC, follow the steps described in the original repository to set up the datasets and make sure the original script correctly works.
 You may also need [Apex amp](https://nvidia.github.io/apex/amp.html) to enable mixed-precision training.
 
 ```bash
@@ -62,7 +60,7 @@ modifications proposed for [Megatron-LM](https://github.com/NVIDIA/Megatron-LM).
 }
 ```
 
-# Run
+## Run
 
 `run_pretraining_rannc.sh` starts `run_pretraining_rannc.py` using MPI.
 After the first forward pass is launched, RaNNC starts to analyze the given model and tries to partition it. 
@@ -98,12 +96,12 @@ Iteration:   0%|          | 1/25570 [4:16:00<109094:36:08, 15360.03s/it]
 ```
 
 
-# Modifications for RaNNC
+## Modifications for RaNNC
 
 To enable RaNNC, we modified `run_pretraining_rannc.py`.
 We explain some important modifications below.
 
-## Import RaNNC
+### Import RaNNC
 
 First you need to import RaNNC.
 
@@ -111,7 +109,7 @@ First you need to import RaNNC.
 import pyrannc
 ```
 
-## Set profiling flag
+### Set profiling flag
 
 Set `torch._C._jit_set_profiling_executor(True)`.
 This is necessary to ensure coherent results of dropout.
@@ -121,7 +119,7 @@ This is necessary to ensure coherent results of dropout.
 torch._C._jit_set_profiling_executor(True)
 ```
 
-## Combine computation of loss value
+### Combine computation of loss value
 
 The original script separates the computation of a loss value from the model (`BertForPreTraining`).
 To make the computation distributed using RaNNC, we combined it with the model.
@@ -145,7 +143,7 @@ class BertForPreTrainingWithCriterion(modeling.BertForPreTraining):
         return self.criterion(prediction_scores, seq_relationship_score, masked_lm_labels, next_sentence_labels)
 ```
 
-## Gradient accumulation
+### Gradient accumulation
 
 The original script implements gradient accumulation, which delays parameter update over multiple mini-batches.
 Since RaNNC implicitly *allreduce*s (sums) gradients across processes, we need to disable the implicit allreduce using
@@ -167,7 +165,7 @@ This function *allreduce*s gradients across processes.
 When the mixed precision using *apex amp* is enabled, it properly manages the gradient scaling and detects overflow.
 
 
-## Gradient clipping
+### Gradient clipping
 
 Since each process has only a part of gradients, such PyTorch's functions as `torch.nn.utils.clip_grad` produce incorrect results.
 Therefore, RaNNCModule has a dedicated method to clip gradients.
@@ -176,7 +174,7 @@ Therefore, RaNNCModule has a dedicated method to clip gradients.
 model.clip_grad_norm(1.0)
 ```
 
-## Saving/Loading checkpoints
+### Saving/Loading checkpoints
 
 You can save or load model parameters using `state_dict` and `load_state_dict` of `RaNNCModule`.
 Note that you can call `state_dict` from all processes to collect parameters across processes.

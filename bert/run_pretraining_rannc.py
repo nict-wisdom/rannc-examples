@@ -1,4 +1,5 @@
 # coding=utf-8
+# Copyright (c) 2021 Data-driven Intelligent System Research Center (DIRECT), National Institute of Information and Communications Technology (NICT).
 # Copyright (c) 2019 NVIDIA CORPORATION. All rights reserved.
 # Copyright 2018 The Google AI Language Team Authors and The HugginFace Inc. team.
 
