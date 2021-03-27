@@ -159,6 +159,7 @@ def main_worker(gpu, ngpus_per_node, args):
     model = pyrannc.RaNNCModule(model, optimizer, check_unused_values=False)
 
     # optionally resume from a checkpoint
+    global_optimizer_state = None
     if args.resume:
         if os.path.isfile(args.resume):
             print("=> loading checkpoint '{}'".format(args.resume))
@@ -174,7 +175,7 @@ def main_worker(gpu, ngpus_per_node, args):
             #     # best_acc1 may be from a checkpoint from a different GPU
             #     best_acc1 = best_acc1.to(args.gpu)
             model.load_state_dict(checkpoint['state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
+            global_optimizer_state = checkpoint['optimizer']
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
         else:
@@ -226,8 +227,8 @@ def main_worker(gpu, ngpus_per_node, args):
         adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch, args)
-
+        train(train_loader, model, criterion, optimizer, epoch, args, global_optimizer_state)
+        global_optimizer_state = None
         # evaluate on validation set
         # acc1 = validate(val_loader, model, criterion, args)
 
@@ -247,7 +248,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     sys.exit(0)
 
-def train(train_loader, model, criterion, optimizer, epoch, args):
+def train(train_loader, model, criterion, optimizer, epoch, args, global_optimizer_state):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
@@ -289,6 +290,11 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         # compute gradient and do SGD step
         optimizer.zero_grad()
         loss.backward()
+
+        if global_optimizer_state:
+            optimizer.load_state_dict(global_optimizer_state)
+            global_optimizer_state = None
+
         optimizer.step()
 
         torch.cuda.synchronize()

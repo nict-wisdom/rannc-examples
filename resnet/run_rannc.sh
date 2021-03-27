@@ -68,6 +68,6 @@ mpirun ${MPI_OPTS} \
   --dist-url ${DIST_URL} --dist-backend 'nccl' \
   -a ${MODEL} \
   --batch-size ${BATCH_SIZE} \
-  --epochs 4 \
+  --epochs 3 \
   ${DATA_DIR}
 exit
