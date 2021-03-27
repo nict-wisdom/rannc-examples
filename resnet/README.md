@@ -35,7 +35,9 @@ The width factors are used in some modern networks including [Big Transfer (BiT)
 For example, the above example trains `resnet152x8`, where the number of layers is 152 and the width factor is 8 
 (3.7 billion parameters).
 
-`run_rannc.sh` starts `main_rannc.py` using MPI.
+`run_rannc.sh` starts `main_rannc.py` using OpenMPI and launched processes communicate using NCCL.
+Edit MPI configurations and NCCL options in `run_rannc.sh` for your environment.
+
 After the first forward pass is launched, RaNNC starts to analyze the given model and tries to partition it. 
 The example output below shows the result of partitioning.
 Note that the partitioning may take hours for a model with billion-scale parameters. 
