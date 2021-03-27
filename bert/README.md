@@ -28,6 +28,8 @@ To use RaNNC, copy the following files in this repository.
 - modeling.py (Path: PyTorch/LanguageModeling/BERT/)
 - run_pretraining_rannc.sh (Path: PyTorch/LanguageModeling/BERT/scripts/)
 
+## Run
+
 `run_pretraining_rannc.sh` requires some variables to be set for your environment.
 The following shows an example to start the script.
 
@@ -61,8 +63,6 @@ modifications proposed for [Megatron-LM](https://github.com/NVIDIA/Megatron-LM).
   "deep_weight_init": true
 }
 ```
-
-## Run
 
 `run_pretraining_rannc.sh` starts `run_pretraining_rannc.py` using MPI.
 After the first forward pass is launched, RaNNC starts to analyze the given model and tries to partition it. 
@@ -100,21 +100,14 @@ Iteration:   0%|          | 1/25570 [4:16:00<109094:36:08, 15360.03s/it]
 
 ## Modifications for RaNNC
 
-To enable RaNNC, we modified `run_pretraining_rannc.py`.
+To use RaNNC, we modified the original script as `run_pretraining_rannc.py`.
 We explain some important modifications below.
 
-### Import RaNNC
-
-First you need to import RaNNC.
-
-```python
-import pyrannc
-```
 
 ### Set profiling flag
 
 Set `torch._C._jit_set_profiling_executor(True)`.
-This is necessary to ensure coherent results of dropout.
+This is necessary to ensure coherent results of dropout when the gradient checkpointing is enabled.
 (See [this issue](https://github.com/pytorch/pytorch/issues/41909))
 
 ```python

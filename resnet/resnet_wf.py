@@ -64,8 +64,6 @@ class Bottleneck(nn.Module):
         self.stride = stride
 
     def forward(self, x):
-        start_time = time.time()
-
         residual = x
 
         out = self.conv1(x)
@@ -84,12 +82,6 @@ class Bottleneck(nn.Module):
 
         out += residual
         out = self.relu(out)
-
-        torch.cuda.synchronize()
-
-        print("bottleneck params: {} time: {}".format(
-            sum([p.numel() for p in self.parameters()]),
-            time.time() - start_time))
 
         return out
 

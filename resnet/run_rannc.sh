@@ -3,17 +3,14 @@
 BASE_DIR=${BASE_DIR:-"$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"}
 cd $BASE_DIR
 
-export LD_PRELOAD=/home/IAL/mtnk/work/nccl_2.7.8-1+cuda10.2_x86_64/lib/libnccl.so
 RL=${BASE_DIR}/rl
-echo $RL
-
-echo "JOB_ID=${PBS_JOBID}"
-echo "conda env=${CONDA_ENV}"
 
 NP=${NP:-8}
-MODEL=${MODEL:-resnet18}
+MODEL=${MODEL:-resnet50}
 BATCH_SIZE=${BATCH_SIZE:-256}
 TIMESTAMP=${TIMESTAMP:-0}
+
+DATA_DIR=${DATA_DIR:-/work/imagenet}
 
 CONSOLIDATE_GRADS=${CONSOLIDATE_GRADS:-false}
 SKIP_GRAD_SCALING=${SKIP_GRAD_SCALING:-false}
@@ -43,7 +40,7 @@ MPI_OPTS="-np ${NP}"
 MPI_OPTS+=" --tag-output"
 MPI_OPTS+=" -bind-to none -map-by slot"
 MPI_OPTS+=" --mca pml ucx --mca btl ^vader,tcp,openib"
-MPI_OPTS+=" -x PATH -x LD_LIBRARY_PATH -x LD_PRELOAD"
+MPI_OPTS+=" -x PATH -x LD_LIBRARY_PATH"
 MPI_OPTS+=" -x UCX_MEMTYPE_CACHE=n -x UCX_NET_DEVICES=mlx5_2:1"
 MPI_OPTS+=" -x NCCL_DEBUG=WARNING -x NCCL_IB_HCA=mlx5_2"
 MPI_OPTS+=" -x RANNC_DO_UNCOARSENING=false"
@@ -71,6 +68,6 @@ mpirun ${MPI_OPTS} \
   --dist-url ${DIST_URL} --dist-backend 'nccl' \
   -a ${MODEL} \
   --batch-size ${BATCH_SIZE} \
-  --epochs 10 \
-  /share01/mtnk/work/imagenet/pytorch_small
+  --epochs 4 \
+  ${DATA_DIR}
 exit

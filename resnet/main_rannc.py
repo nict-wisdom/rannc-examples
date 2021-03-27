@@ -19,7 +19,7 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 
-import my_resnet
+import resnet_wf
 
 import pyrannc
 
@@ -103,24 +103,11 @@ def main():
                       'You may see unexpected behavior when restarting '
                       'from checkpoints.')
 
-    if args.gpu is not None:
-        warnings.warn('You have chosen a specific GPU. This will completely '
-                      'disable data parallelism.')
-
     args.world_size = pyrannc.get_world_size()
     args.distributed = args.world_size > 1 or args.multiprocessing_distributed
 
     ngpus_per_node = torch.cuda.device_count()
-    if args.multiprocessing_distributed:
-        # Since we have ngpus_per_node processes per node, the total world_size
-        # needs to be adjusted accordingly
-        args.world_size = ngpus_per_node * args.world_size
-        # Use torch.multiprocessing.spawn to launch distributed processes: the
-        # main_worker process function
-        mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args))
-    else:
-        # Simply call main_worker function
-        main_worker(args.gpu, ngpus_per_node, args)
+    main_worker(args.gpu, ngpus_per_node, args)
 
 
 def main_worker(gpu, ngpus_per_node, args):
@@ -131,12 +118,7 @@ def main_worker(gpu, ngpus_per_node, args):
         print("Use GPU: {} for training".format(args.gpu))
 
     if args.distributed:
-        if args.dist_url == "env://" and args.rank == -1:
-            args.rank = int(os.environ["RANK"])
-        if args.multiprocessing_distributed:
-            # For multiprocessing distributed training, rank needs to be the
-            # global rank among all the processes
-            args.rank = args.rank * ngpus_per_node + gpu
+        args.rank = pyrannc.get_rank()
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
     # create model
@@ -144,48 +126,15 @@ def main_worker(gpu, ngpus_per_node, args):
         print("=> using pre-trained model '{}'".format(args.arch))
         model = models.__dict__[args.arch](pretrained=True)
     else:
-        print("=> creating model '{}'".format(args.arch))
-        # model = models.__dict__[args.arch]()
-        model = my_resnet.__dict__[args.arch]()
+        if pyrannc.get_rank() == 0:
+            print("=> creating model '{}'".format(args.arch))
+        model = resnet_wf.__dict__[args.arch]()
 
-    print("#Parameters={}".format(sum([p.numel() for p in model.parameters()])))
-
-    # if not torch.cuda.is_available():
-    #     print('using CPU, this will be slow')
-    # elif args.distributed:
-    #     # For multiprocessing distributed, DistributedDataParallel constructor
-    #     # should always set the single device scope, otherwise,
-    #     # DistributedDataParallel will use all available devices.
-    #     if args.gpu is not None:
-    #         torch.cuda.set_device(args.gpu)
-    #         model.cuda(args.gpu)
-    #         # When using a single GPU per process and per
-    #         # DistributedDataParallel, we need to divide the batch size
-    #         # ourselves based on the total number of GPUs we have
-    #         args.batch_size = int(args.batch_size / ngpus_per_node)
-    #         args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
-    #         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
-    #         print("Set ddp. rank={}".format(dist.get_rank()))
-    #     else:
-    #         model.cuda()
-    #         # DistributedDataParallel will divide and allocate batch_size to all
-    #         # available GPUs if device_ids are not set
-    #         model = torch.nn.parallel.DistributedDataParallel(model)
-    # elif args.gpu is not None:
-    #     torch.cuda.set_device(args.gpu)
-    #     model = model.cuda(args.gpu)
-    # else:
-    #     # DataParallel will divide and allocate batch_size to all available GPUs
-    #     if args.arch.startswith('alexnet') or args.arch.startswith('vgg'):
-    #         model.features = torch.nn.DataParallel(model.features)
-    #         model.cuda()
-    #     else:
-    #         model = torch.nn.DataParallel(model).cuda()
+    if pyrannc.get_rank() == 0:
+        print("#Parameters={}".format(sum([p.numel() for p in model.parameters()])))
 
     torch.cuda.set_device(args.gpu)
     model.cuda(args.gpu)
-
-    print("args.world_size={}".format(args.world_size))
 
     args.batch_size = int(args.batch_size / args.world_size)
     args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
@@ -220,10 +169,10 @@ def main_worker(gpu, ngpus_per_node, args):
                 loc = 'cuda:{}'.format(args.gpu)
                 checkpoint = torch.load(args.resume, map_location=loc)
             args.start_epoch = checkpoint['epoch']
-            best_acc1 = checkpoint['best_acc1']
-            if args.gpu is not None:
-                # best_acc1 may be from a checkpoint from a different GPU
-                best_acc1 = best_acc1.to(args.gpu)
+            # best_acc1 = checkpoint['best_acc1']
+            # if args.gpu is not None:
+            #     # best_acc1 may be from a checkpoint from a different GPU
+            #     best_acc1 = best_acc1.to(args.gpu)
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})"
@@ -286,16 +235,15 @@ def main_worker(gpu, ngpus_per_node, args):
         # is_best = acc1 > best_acc1
         # best_acc1 = max(acc1, best_acc1)
 
-        # if not args.multiprocessing_distributed or (args.multiprocessing_distributed
-        #         and args.rank % ngpus_per_node == 0):
-        # if dist.get_rank() == 0:
-        #     save_checkpoint({
-        #         'epoch': epoch + 1,
-        #         'arch': args.arch,
-        #         'state_dict': model.state_dict(),
-        #         'best_acc1': best_acc1,
-        #         'optimizer' : optimizer.state_dict(),
-        #     }, is_best)
+        model_state_dict = model.state_dict()
+        opt_state_dict = optimizer.state_dict()
+        if dist.get_rank() == 0:
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'arch': args.arch,
+                'state_dict': model_state_dict,
+                'optimizer': opt_state_dict,
+            })
 
     sys.exit(0)
 
@@ -400,10 +348,8 @@ def validate(val_loader, model, criterion, args):
     return top1.avg
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+def save_checkpoint(state, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
-    if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
 
 
 class AverageMeter(object):
