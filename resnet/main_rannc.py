@@ -237,7 +237,7 @@ def main_worker(gpu, ngpus_per_node, args):
         # best_acc1 = max(acc1, best_acc1)
 
         model_state_dict = model.state_dict()
-        opt_state_dict = optimizer.state_dict()
+        opt_state_dict = optimizer.state_dict(from_global=True)
         if dist.get_rank() == 0:
             save_checkpoint({
                 'epoch': epoch + 1,
@@ -292,7 +292,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args, global_optimiz
         loss.backward()
 
         if global_optimizer_state:
-            optimizer.load_state_dict(global_optimizer_state)
+            optimizer.load_state_dict(global_optimizer_state, from_global=True)
             global_optimizer_state = None
 
         optimizer.step()

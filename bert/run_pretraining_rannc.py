@@ -699,7 +699,7 @@ def main():
 
                     # Restore optimizer's state AFTER partitioning
                     if global_optimizer_state:
-                        optimizer.load_state_dict(global_optimizer_state)
+                        optimizer.load_state_dict(global_optimizer_state, from_global=True)
                         global_optimizer_state = None
 
                     show_mem("Iter{}_bwd_fin".format(step))
@@ -741,7 +741,7 @@ def main():
                         #                                         'module') else model  # Only save the model it-self
 
                         state_dict = model.state_dict(sync_all_ranks=False, no_hook=True)
-                        global_opt_state_dict = optimizer.state_dict()
+                        global_opt_state_dict = optimizer.state_dict(from_global=True)
 
                         if args.resume_step < 0 or not args.phase2:
                             output_save_file = os.path.join(args.output_dir, "ckpt_{}.pt".format(global_step))

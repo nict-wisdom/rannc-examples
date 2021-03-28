@@ -64,7 +64,7 @@ modifications proposed for [Megatron-LM](https://github.com/NVIDIA/Megatron-LM).
 }
 ```
 
-`run_pretraining_rannc.sh` starts `run_pretraining_rannc.py` using OpenMPI and launched processes communicate using NCCL.
+`run_pretraining_rannc.sh` starts `run_pretraining_rannc.py` using OpenMPI and the launched processes communicate using NCCL.
 Edit MPI configurations and NCCL options in `run_pretraining_rannc.sh` for your environment.
 
 After the first forward pass is launched, RaNNC starts to analyze the given model and tries to partition it. 
