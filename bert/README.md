@@ -34,12 +34,14 @@ To use RaNNC, copy the following files in this repository.
 The following shows an example to start the script.
 
 ```bash
-BERT_CONFIG=my_bert_config.json
+NP=32 \
+BERT_CONFIG=my_bert_config.json \
 CODEDIR=/.../DeepLearningExamples/PyTorch/LanguageModeling/BERT \
 BERT_PREP_WORKING_DIR=/.../DeepLearningExamples/PyTorch/LanguageModeling/BERT/data/prep \
 sh ./scripts/run_pretraining_rannc.sh 
 ```
 
+`NP` sets the number of processes launched by MPI.
 `BERT_CONFIG` allows you to change configurations of your BERT model.
 For example, the configuration below produces an enlarged BERT model with 4.9 billion parameters.
 `megatron_residual_connection`, `scale_query_key`, and `deep_weight_init` are options to enable
