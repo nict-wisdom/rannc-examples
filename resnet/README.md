@@ -41,6 +41,8 @@ Edit MPI configurations and NCCL options in `run_rannc.sh` as needed by your env
 After the first forward pass is launched, RaNNC starts to analyze the given model to partition it. 
 The example output below shows the result of partitioning.
 Note that the partitioning may take hours for a model with billion-scale parameters. 
+The above command took 3 hours for the 3.7 billion parameter model and 32 V100s in our environment until finishing partitioning.
+You can check whether the partitioning algorithm is running by changing the log level. (See [FAQ](https://nict-wisdom.github.io/rannc/faq.html) and [Logging](https://nict-wisdom.github.io/rannc/logging.html))
 
 After partitioning is successfully finished, RaNNC shows the overview of the results of the partitioning and the training starts.
 
