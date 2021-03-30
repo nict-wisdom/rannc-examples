@@ -2,13 +2,13 @@
 
 This page briefly explains how to use RaNNC to train enlarged ResNet models.
 Before running scripts in this repository, ensure that prerequisites to use RaNNC are satisfied 
-(RaNNC requires some libraries including MPI, NCCL, etc.).
+(RaNNC requires several libraries including MPI, NCCL, etc.).
 
 ## Setup
 
-We modified a training script in [PyTorch examples](https://github.com/pytorch/examples/tree/master/imagenet).
+We modified the training script in [PyTorch examples](https://github.com/pytorch/examples/tree/master/imagenet).
 Training data needs to be downloaded following the [instructions](https://github.com/pytorch/examples/tree/master/imagenet) for the original script.
-Before using RaNNC, ensure the original script (`main.py`) correctly works with the dataset.
+Before using RaNNC, ensure that the original script (`main.py`) correctly works with the dataset.
 
 
 ## Run
@@ -35,10 +35,10 @@ The width factors are used in some modern networks including [Big Transfer (BiT)
 For example, the above example trains `resnet152x8`, where the number of layers is 152 and the width factor is 8 
 (3.7 billion parameters).
 
-`run_rannc.sh` starts `main_rannc.py` using OpenMPI and launched processes communicate using NCCL.
-Edit MPI configurations and NCCL options in `run_rannc.sh` for your environment.
+`run_rannc.sh` starts `main_rannc.py` using OpenMPI. The launched processes communicate using NCCL.
+Edit MPI configurations and NCCL options in `run_rannc.sh` as needed by your environment.
 
-After the first forward pass is launched, RaNNC starts to analyze the given model and tries to partition it. 
+After the first forward pass is launched, RaNNC starts to analyze the given model to partition it. 
 The example output below shows the result of partitioning.
 Note that the partitioning may take hours for a model with billion-scale parameters. 
 
@@ -66,7 +66,7 @@ We explain some important modifications below.
 
 ### Training mode
 
-`main_rannc.py` skips the validation during training because it takes a long time to switch of the training mode when using RaNNC.
+`main_rannc.py` skips the validation during training because it takes a long time to switch off the training mode when using RaNNC.
 
 RaNNC uses a traced graph resulting from PyTorch's `torch.jit.trace()`.
 Once the graph is generated, however, the training mode does not affect the graph.

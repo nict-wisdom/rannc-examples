@@ -2,14 +2,13 @@
 
 This page briefly explains how to use RaNNC to train BERT models.
 Before running scripts in this repository, ensure that prerequisites to use RaNNC are satisfied 
-(RaNNC requires some libraries including MPI, NCCL, etc.).
+(RaNNC requires several libraries including MPI, NCCL, etc.).
 
 ## Setup
 
-We use BERT [pretraining scripts by NVIDIA](https://github.com/NVIDIA/DeepLearningExamples/tree/master/PyTorch/LanguageModeling/BERT).
-Clone the repository and install required modules.
+We use BERT [pretraining scripts by NVIDIA](https://github.com/NVIDIA/DeepLearningExamples/tree/master/PyTorch/LanguageModeling/BERT), so you should first clone this repository and install the required modules.
 We tested RaNNC with the revision shown below.
-Before using RaNNC, follow the steps described in the original repository to set up the datasets and make sure the original script correctly works.
+Before using RaNNC, follow the steps described in the original repository to set up the datasets and make sure that the original scripts correctly work.
 You may also need [Apex amp](https://nvidia.github.io/apex/amp.html) to enable mixed-precision training.
 
 ```bash
@@ -19,8 +18,7 @@ cd PyTorch/LanguageModeling/BERT
 pip install -r requirements.txt
 ```
 
-
-To use RaNNC, copy the following files in this repository.
+To use RaNNC, copy the following files in `DeepLearningExamples`.
 *Path*s show the paths where the files should be placed.
 
 - rl (Path: PyTorch/LanguageModeling/BERT/)
@@ -66,12 +64,12 @@ modifications proposed for [Megatron-LM](https://github.com/NVIDIA/Megatron-LM).
 }
 ```
 
-`run_pretraining_rannc.sh` starts `run_pretraining_rannc.py` using OpenMPI and the launched processes communicate using NCCL.
-Edit MPI configurations and NCCL options in `run_pretraining_rannc.sh` for your environment.
+`run_pretraining_rannc.sh` starts `run_pretraining_rannc.py` using OpenMPI. The launched processes communicate using NCCL.
+Edit MPI configurations and NCCL options in `run_pretraining_rannc.sh` as needed by your environment.
 
-After the first forward pass is launched, RaNNC starts to analyze the given model and tries to partition it. 
+After the first forward pass is launched, RaNNC starts to analyze the given model to partition it. 
 The example output below shows the result of partitioning.
-Note that the partitioning may take hours for a model with billion-scale parameters. 
+Note that the partitioning may take several hours for a model with billion-scale parameters. 
 
 ```
 <RaNNCModule>: Tracing model ...
@@ -104,15 +102,14 @@ Iteration:   0%|          | 1/25570 [4:16:00<109094:36:08, 15360.03s/it]
 
 ## Modifications for RaNNC
 
-To use RaNNC, we modified the original script as `run_pretraining_rannc.py`.
+To use RaNNC, we modified the original script `run_pretraining.py` as `run_pretraining_rannc.py`.
 We explain some important modifications below.
-
 
 ### Set profiling flag
 
 Set `torch._C._jit_set_profiling_executor(True)`.
 This is necessary to ensure coherent results of dropout when the gradient checkpointing is enabled.
-(See [this issue](https://github.com/pytorch/pytorch/issues/41909))
+(See [this relevant issue](https://github.com/pytorch/pytorch/issues/41909))
 
 ```python
 torch._C._jit_set_profiling_executor(True)
@@ -120,7 +117,7 @@ torch._C._jit_set_profiling_executor(True)
 
 ### Combine computation of loss value
 
-The original script separates the computation of a loss value from the model (`BertForPreTraining`).
+The original script separates the computation of the loss value from the model (`BertForPreTraining`).
 To make the computation distributed using RaNNC, we combined it with the model.
 
 ```python
@@ -154,14 +151,14 @@ pyrannc.delay_grad_allreduce(args.allreduce_post_accumulation)
 
 In `take_optimizer_step()`, the original script explictly performs allreduce by directly manipulating data on CUDA device memory.
 However, it does not work with RaNNC because RaNNC relies on its own memory management.
-Instead, you can use a utility function `allreduce_grads_rannc()`.
+Instead, you can use the utility function `allreduce_grads_rannc()`.
 
 ```python
 had_overflow = allreduce_grads_rannc(model, optimizer, 1./args.gradient_accumulation_steps)
 ```
 
 This function *allreduce*s gradients across processes.
-When the mixed precision using *apex amp* is enabled, it properly manages the gradient scaling and detects overflow.
+When mixed precision using *apex amp* is enabled, it properly manages the gradient scaling and detects overflow.
 
 
 ### Gradient clipping
@@ -195,7 +192,7 @@ global_opt_state_dict = optimizer.state_dict()
 ```
 
 The return value of `optimizer.state_dict()` contains the state for all parameters.
-When properly loading it, `load_state_dict` must be called after the model partitioning is determined.
+`load_state_dict` can load the return value, but it must be called after the model partitioning is determined.
 The following shows a typical usage of `load_state_dict`, where `load_state_dict` is called once after a backward pass.
 
 ```python
