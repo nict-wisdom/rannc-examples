@@ -1,6 +1,6 @@
 # Examples for RaNNC
 
-This repository provides example of training scripts using RaNNC.
+This repository provides examples of training scripts using RaNNC.
 Currently, training scripts for the following networks are available.
 Using RaNNC, you can train enlarged versions of these networks.
 
