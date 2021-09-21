@@ -238,7 +238,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
         model_state_dict = model.state_dict()
         opt_state_dict = optimizer.state_dict(from_global=True)
-        if dist.get_rank() == 0:
+        if pyrannc.get_rank() == 0:
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args.arch,
