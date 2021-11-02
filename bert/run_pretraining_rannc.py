@@ -85,8 +85,8 @@ import dllogger
 from concurrent.futures import ProcessPoolExecutor
 
 import pyrannc
-from pyrannc.amp import allreduce_grads_rannc
-from pyrannc.opt.util import gather_optimizer_state_dict
+
+
 
 enable_show_mem = False
 
@@ -510,7 +510,7 @@ def take_optimizer_step(args, optimizer, model, overflow_buf, global_step):
         show_mem("ar{}_start".format(global_step))
 
         ar_start = time.time()
-        had_overflow = allreduce_grads_rannc(model, optimizer, 1./args.gradient_accumulation_steps)
+        had_overflow = pyrannc.allreduce_grads(model, optimizer, 1./args.gradient_accumulation_steps)
         ar_end = time.time()
 
         show_mem("ar{}_fin".format(global_step))
@@ -579,7 +579,7 @@ def main():
                 _module.float()
 
     # Create rannc model here
-    model = pyrannc.RaNNCModule(model, optimizer, use_amp_master_params=args.fp16)
+    model = pyrannc.RaNNCModule(model, optimizer, enable_apex_amp=args.fp16)
     pyrannc.delay_grad_allreduce(args.allreduce_post_accumulation)
     pyrannc.sync_params_on_init(False)
 
