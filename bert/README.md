@@ -13,6 +13,7 @@ You may also need [Apex amp](https://nvidia.github.io/apex/amp.html) to enable m
 
 ```bash
 git clone https://github.com/NVIDIA/DeepLearningExamples
+cd DeepLearningExamples
 git checkout 65211bd9621c781bc29d3a4e1c3c287983645d50
 cd PyTorch/LanguageModeling/BERT
 pip install -r requirements.txt
